@@ -4,42 +4,104 @@ import os
 import sys
 import time, datetime
 import exifread
+from geopy.geocoders import Nominatim
 
 file_copyed = 0
 
-def GetDateTakenOfPhoto(filename):
-	key = 'EXIF DateTimeOriginal'
+file_skipped = 0
+
+# returns a tuple ([Country, State, Region], [Year, Month, Day])
+def GetLocationAndDateOfPhoto(filename):
+        tags = GetExifTags(filename)
+
+        # Get location
+        location_lat_ref_key = 'GPS GPSLatitudeRef'
+        location_lat_key = 'GPS GPSLatitude'
+        location_lon_ref_key = 'GPS GPSLongitudeRef'
+        location_lon_key = 'GPS GPSLongitude'
+
+        geodegrees = GetGeoDecimalDegrees(tags[location_lat_ref_key], /
+                tags[location_lat_key], tags[location_lon_ref_key], /
+                tags[location_lon]_key)
+        geolocator = Nominatim()
+        geo_location = geolocator.reverse(geodegrees)
+        geo_address = geo_location.raw['address']
+        country = geo_address['country']
+        state = geo_address['state']
+        region = geo_address['region'].split('/')[0].strip()
+        location = [country, state, region]
+
+        # Get date
+	date_key = 'EXIF DateTimeOriginal'
+	try:
+		t = time.strptime(str(tags[key]), '%Y:%m:%d %H:%M:%S')
+		t = datetime.datetime(*t[:3])
+	except KeyError as arg:
+                # fall back to creation time
+		longdate = os.path.getctime(filename)
+		t = datetime.datetime.fromtimestamp(longdate)
+	else:
+		t = datetime.datetime.now()
+	year = str(t.year)
+	month = '0' + str(t.month) if t.month < 10 else str(t.month)
+	day = '0' + str(t.day) if t.day < 10 else str(t.day)
+        date = [year, month, day]
+        return (location, date)
+
+def GetExifTags(filename):
 	f = open(filename, 'rb')
 	tags = exifread.process_file(f)
 	f.close()
-	try:
-		t = time.strptime(str(tags[key]), '%Y:%m:%d %H:%M:%S')
-		return datetime.datetime(*t[:3])
-	except KeyError as arg:
-		longdate = os.path.getctime(filename)
-		return datetime.datetime.fromtimestamp(longdate)
-	else:
-		return datetime.datetime.now()
+        return tags
+
+def GetGeoDecimalDegrees(lat_ref, lat, lon_ref, lon):
+        lat_dms = GetDmsFormat(lat)
+        lat = lat_dms[0] + lat_dms[1]/60.0 + (lat_dms[2]/60.0)/60.0
+        if lat_ref == 'S':
+            lat = -lat
+
+        lon_dms = GetDmsFormat(lon)
+        lon = lon_dms[0] + lon_dms[1]/60.0 + (lon_dms[2]/60.0)/60.0
+        if lon_ref == 'W':
+            lon = -lon
+        return str(lat) + ', ' + str(lon)
+    
+def GetDmsFormat(lat_or_lon_instanceOfIfdTag):
+        l_str = str(lat_or_lon_instanceOfIfdTag)
+        l_str = l_str.strip('[').strip(']')
+        l_dms = l_str.split(',')
+        l_dms = list(map(lambda item: item.strip(), l_dms))
+        assert(len(l_dms) == 3)
+        l_d = int(l_dms[0])
+        l_m = int(l_dms[1])
+        l_s_molecular_form = l_dms[2].split('/')
+        l_s = float(l_s_molecular_form[0])/float(l_s_molecular_form[1])
+        return [l_m, l_d, l_s]
 	
 
-# according to the creat date
+# according to the location where the photo was taken and then the creation date
+# in format of yyyy-MM-dd
 def TidyFile(sourcefile, targetdir):
 	# if not PNG, JPG, JPEG, just skip it
 	fileext = os.path.splitext(sourcefile)[1]
 	if fileext.lower() != '.png' and fileext.lower() != '.jpg' and fileext.lower != '.jpeg':
+                # printing a log
+                file_skipped += 1
 		return
 
 	basename = os.path.basename(sourcefile)
 	
-	datetaken = GetDateTakenOfPhoto(sourcefile)
+	(location, date) = GetLocationAndDateOfPhoto(sourcefile)
 	#print(str(date.year) + "Y" + str(date.month) + "M" + str(date.day) +"D")
 
-	year = str(datetaken.year)
-	month = '0' + str(datetaken.month) if datetaken.month < 10 else str(datetaken.month)
-	day = '0' + str(datetaken.day) if datetaken.day < 10 else str(datetaken.day)
-
 	topfolder = targetdir
-	subfolder = year + '.' + month + '.' + day
+###################
+# TODO: Now we have location and date information of a photo, it should be
+# placed in the right folder then
+###################
+        # geo_subfolder = 
+
+	date_subfolder = year + '.' + month + '.' + day
 
 	writefolder = os.path.join(topfolder, subfolder)
 	#print(writefolder)
