@@ -1,10 +1,11 @@
-!#/bin/python
+#!/bin/python
 
 import os
 import sys
 import time, datetime
 import exifread
 from geopy.geocoders import Nominatim
+import random
 
 file_copyed = 0
 
@@ -20,21 +21,36 @@ def GetLocationAndDateOfPhoto(filename):
         location_lon_ref_key = 'GPS GPSLongitudeRef'
         location_lon_key = 'GPS GPSLongitude'
 
-        geodegrees = GetGeoDecimalDegrees(tags[location_lat_ref_key], /
-                tags[location_lat_key], tags[location_lon_ref_key], /
-                tags[location_lon]_key)
-        geolocator = Nominatim()
-        geo_location = geolocator.reverse(geodegrees)
-        geo_address = geo_location.raw['address']
-        country = geo_address['country']
-        state = geo_address['state']
-        region = geo_address['region'].split('/')[0].strip()
-        location = [country, state, region]
+	location = []
+	if tags.has_key(location_lat_ref_key):
+        	geodegrees = GetGeoDecimalDegrees(tags[location_lat_ref_key], \
+        	        tags[location_lat_key], tags[location_lon_ref_key], \
+        	        tags[location_lon_key])
+		#for key in tags.keys():
+		#	if key[:3] == 'GPS':
+		#		print('Key: {0}, Value: {1}'.format(key, tags[key]))
+		try:
+        		geolocator = Nominatim()
+        		geo_location = geolocator.reverse(geodegrees)
+        		geo_address = geo_location.raw['address']
+        		country = geo_address['country']
+        		state = geo_address['state']
+			region = 'unknown'
+			if geo_address.has_key('region'):
+        			region = geo_address['region'].split('/')[0].strip()
+			elif geo_address.has_key('county'):
+				region = geo_address['county'].split('/')[0].strip()
+        		#location = [country, state]
+        		location = [country, state, region]
+		except KeyError as arg:
+			print(geo_address)
+	else:
+		print('file {0} has no geo info'.format(filename))
 
         # Get date
 	date_key = 'EXIF DateTimeOriginal'
 	try:
-		t = time.strptime(str(tags[key]), '%Y:%m:%d %H:%M:%S')
+		t = time.strptime(str(tags[date_key]), '%Y:%m:%d %H:%M:%S')
 		t = datetime.datetime(*t[:3])
 	except KeyError as arg:
                 # fall back to creation time
@@ -76,8 +92,12 @@ def GetDmsFormat(lat_or_lon_instanceOfIfdTag):
         l_m = int(l_dms[1])
         l_s_molecular_form = l_dms[2].split('/')
         l_s = float(l_s_molecular_form[0])/float(l_s_molecular_form[1])
-        return [l_m, l_d, l_s]
+        return [l_d, l_m, l_s]
 	
+def rename(filename):
+	(path, ext) = os.path.splitext(filename)
+	randomint = random.randint(0,100)
+	return path + str(randomint) + ext
 
 # according to the location where the photo was taken and then the creation date
 # in format of yyyy-MM-dd
@@ -92,25 +112,21 @@ def TidyFile(sourcefile, targetdir):
 	basename = os.path.basename(sourcefile)
 	
 	(location, date) = GetLocationAndDateOfPhoto(sourcefile)
-	#print(str(date.year) + "Y" + str(date.month) + "M" + str(date.day) +"D")
+	# Output file path
+	# Country/State/Region/Year-Month-Day/
+	inter_folders = list(location)
+	inter_folders.append('-'.join(date))
 
-	topfolder = targetdir
-###################
-# TODO: Now we have location and date information of a photo, it should be
-# placed in the right folder then
-###################
-        # geo_subfolder = 
-
-	date_subfolder = year + '.' + month + '.' + day
-
-	writefolder = os.path.join(topfolder, subfolder)
-	#print(writefolder)
+	outputfolder = os.path.join(targetdir, *inter_folders)
 
 	if os.path.isfile(sourcefile):
-		if not os.path.exists(writefolder):
-			os.makedirs(writefolder)
+		if not os.path.exists(outputfolder):
+			os.makedirs(outputfolder)
 
-		targetfile = os.path.join(writefolder, basename)
+		targetfile = os.path.join(outputfolder, basename)
+		# in case there are different files having the same name
+		while os.path.exists(targetfile):
+			targetfile = rename(targetfile)	
 
 		if not os.path.exists(targetfile):
 			filetowrite = open(targetfile, 'wb')
@@ -118,7 +134,7 @@ def TidyFile(sourcefile, targetdir):
 			filetowrite.write(filetoread.read())
 			filetoread.close()
 			filetowrite.close()
-			print('file copyed - sourcefile: {0} \t targetfile: {1}'.format(sourcefile, targetfile))
+			print('file copyed - sourcefile: {0} \t targetfile: {1}'.format(sourcefile, targetfile.encode('utf-8')))
 			global file_copyed
 			file_copyed += 1
 		#os.remove(sourcefile)
@@ -126,14 +142,17 @@ def TidyFile(sourcefile, targetdir):
 def TidyDirectory(sourcedir, targetdir):
 	if os.path.isdir(sourcedir):
 		for item in os.listdir(sourcedir):
-			#print(item)
 			sourcefile = os.path.join(sourcedir, item)
 			if os.path.isfile(sourcefile):
 				TidyFile(sourcefile, targetdir)
 			elif os.path.isdir(sourcefile):
 				TidyDirectory(sourcefile, targetdir)
-
-sourcedir = sys.argv[1]
-targetdir = sys.argv[2]
-TidyDirectory(sourcedir, targetdir)
-print('total copyed files: ' + str(file_copyed))
+if __name__ == '__main__':
+	if len(sys.argv) != 3:
+		print('Usage: Classifier.py SourceDir OutputDir')
+		exit(0)
+	sourcedir = sys.argv[1]
+	targetdir = sys.argv[2]
+	TidyDirectory(sourcedir, targetdir)
+	print('File skipped: ' + str(file_skipped))
+	print('File copied: ' + str(file_copyed))
