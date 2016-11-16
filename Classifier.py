@@ -11,6 +11,24 @@ file_copyed = 0
 
 file_skipped = 0
 
+class Logger:
+    def __init__(self, directory):
+        self.log_file = os.path.join(directory, 'log.txt')
+        self.log_stream = open(self.log_file, 'w')
+
+    def info(self, info_str):
+        self.log_stream.write('info: ' + info_str + os.linesep)
+
+    def warn(self, warn_str):
+        self.log_stream.write('warning: ' + warn_str + os.linesep)
+
+    def error(self, error_str):
+        self.log_stream.write('error: ' + error_str + os.linesep)
+
+    def finalize(self)
+        self.log_stream.flush()
+        self.log_stream.close()
+
 # returns a tuple ([Country, State, Region], [Year, Month, Day])
 def GetLocationAndDateOfPhoto(filename):
         tags = GetExifTags(filename)
@@ -153,6 +171,7 @@ if __name__ == '__main__':
 		exit(0)
 	sourcedir = sys.argv[1]
 	targetdir = sys.argv[2]
+
 	TidyDirectory(sourcedir, targetdir)
 	print('File skipped: ' + str(file_skipped))
 	print('File copied: ' + str(file_copyed))
