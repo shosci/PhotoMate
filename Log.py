@@ -15,7 +15,8 @@ class Logger:
     def error(self, error_str):
         self.log_stream.write('error: ' + error_str + os.linesep)
 
-    def finalize(self)
+    def finalize(self):
         self.log_stream.flush()
         self.log_stream.close()
+
 
