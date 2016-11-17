@@ -3,13 +3,13 @@
 
 if __name__ == '__main__':
     # prep
-    from sys import path
-    path.append('..\src')
+    import os
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..\src'))
     from Log import Logger 
-    path.pop()
+    sys.path.pop()
     import tempfile
     d = tempfile.mkdtemp()
-    print("Created temp directory: " + d)
     logger = Logger(d)
     # Act
     logger.info("info test")
